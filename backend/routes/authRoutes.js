@@ -1,11 +1,27 @@
-// backend/routes/authRoutes.js
-
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { loginAdmin, registerAdmin } = require('../controllers/authController');
 
-// Public authentication routes
-router.post('/login', loginAdmin);
-router.post('/register', registerAdmin); // Used once to seed initial admin
+const {
+    loginAdmin,
+    registerAdmin,
+    loginUser,
+    registerUser
+} = require("../controllers/authController");
+
+// ---------------- ADMIN ----------------
+
+// Seed first admin (only once)
+router.post("/admin/register", registerAdmin);
+
+// Admin Login
+router.post("/admin/login", loginAdmin);
+
+// ---------------- CUSTOMER ----------------
+
+// Customer Register
+router.post("/register", registerUser);
+
+// Customer Login
+router.post("/login", loginUser);
 
 module.exports = router;
