@@ -84,7 +84,7 @@ const orderSchema = new mongoose.Schema(
       default: null,
       index: true
     },
-    notes: {
+    specialInstructions: {
       type: String,
       trim: true,
       default: ''

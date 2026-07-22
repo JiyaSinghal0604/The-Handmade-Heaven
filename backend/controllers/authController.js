@@ -33,7 +33,7 @@ const loginAdmin = async (req, res) => {
         const token = jwt.sign(
             { id: admin._id, username: admin.username },
             process.env.JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '30d' }
         );
 
         res.status(200).json({
@@ -124,7 +124,7 @@ const registerUser = async (req, res) => {
             },
             process.env.JWT_SECRET,
             {
-                expiresIn: "7d"
+                expiresIn: "30d"
             }
         );
 
@@ -184,7 +184,7 @@ const loginUser = async (req, res) => {
             },
             process.env.JWT_SECRET,
             {
-                expiresIn: "7d"
+                expiresIn: "30d"
             }
         );
 

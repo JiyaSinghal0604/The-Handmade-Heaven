@@ -41,8 +41,8 @@ export default function Register() {
         throw new Error(data.message);
       }
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("customerToken", data.token);
+      localStorage.setItem("customer", JSON.stringify(data.user));
 
       toast.success("Registration Successful!");
 

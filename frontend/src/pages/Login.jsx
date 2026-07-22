@@ -1,9 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 export default function Login() {
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const token=localStorage.getItem("customerToken");
+        const customer=localStorage.getItem("customer");
+        if(token && customer){
+            navigate("/track-order");
+        }
+    }, [navigate]);
 
     const [loading, setLoading] = useState(false);
 
@@ -39,8 +47,8 @@ export default function Login() {
                 throw new Error(data.message);
             }
 
-            localStorage.setItem("token", data.token);
-            localStorage.setItem("user", JSON.stringify(data.user));
+            localStorage.setItem("customerToken", data.token);
+            localStorage.setItem("customer", JSON.stringify(data.user));
 
             toast.success("Login Successful!");
 

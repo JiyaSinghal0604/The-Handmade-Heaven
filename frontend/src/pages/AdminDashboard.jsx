@@ -1,558 +1,519 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Plus, Trash2, Edit3, Package, LogOut, Loader2, ShieldCheck, X, Sun, Moon } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  Package,
+  ShoppingBag,
+  Users,
+  XCircle,
+  Clock,
+  CheckCircle2,
+  Truck,
+  RefreshCw,
+  Search,
+  FileText,
+  Phone,
+  MapPin,
+  MessageCircle,
+  Plus,
+  Trash2,
+  Edit3,
+  TrendingUp,
+  DollarSign
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import API from '../services/api';
 import toast from 'react-hot-toast';
 
+const STATUS_OPTIONS = [
+  { value: 'Pending', label: 'Pending', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock },
+  { value: 'Processing', label: 'Processing', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: RefreshCw },
+  { value: 'Out for Delivery', label: 'Out for Delivery', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: Truck },
+  { value: 'Delivered', label: 'Delivered', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
+  { value: 'Cancelled', label: 'Cancelled', color: 'bg-rose-100 text-rose-700 border-rose-200', icon: XCircle }
+];
+
 export default function AdminDashboard() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Theme State ('dark' or 'dim-light')
-  const [theme, setTheme] = useState(localStorage.getItem('adminTheme') || 'dim-light');
-  
-  // New Product Form State
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState('');
-  const [category, setCategory] = useState('');
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  // Edit Modal State
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editPrice, setEditPrice] = useState('');
-  const [editCategory, setEditCategory] = useState('');
-  const [editImageUrl, setEditImageUrl] = useState('');
-  const [updating, setUpdating] = useState(false);
-
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'products'
+  
+  // Orders State
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [updatingId, setUpdatingId] = useState(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      toast.error('Unauthorized access. Please log in.');
-      navigate('/admin/login');
-      return;
+  // Products State (from your existing inventory view)
+  const [products, setProducts] = useState([]);
+  const [productForm, setProductForm] = useState({
+    name: '',
+    category: '',
+    price: '',
+    description: '',
+    imageUrl: ''
+  });
+  const [submittingProduct, setSubmittingProduct] = useState(false);
+
+  const getToken = () => localStorage.getItem('token') || localStorage.getItem('authToken') || localStorage.getItem('adminToken');
+
+  const fetchOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      const token = getToken();
+      const response = await fetch('http://localhost:5000/api/orders', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      const data = await response.json();
+      setOrders(Array.isArray(data) ? data : data.orders || []);
+    } catch (error) {
+      toast.error(error.message || 'Error loading orders');
+    } finally {
+      setLoadingOrders(false);
     }
-    fetchProducts();
-  }, [navigate]);
-
-  useEffect(() => {
-    localStorage.setItem('adminTheme', theme);
-  }, [theme]);
+  };
 
   const fetchProducts = async () => {
     try {
-      setLoading(true);
-      const response = await API.get('/products');
-      setProducts(response.data.products || response.data);
+      const res = await fetch('http://localhost:5000/api/products');
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(Array.isArray(data) ? data : data.products || []);
+      }
+    } catch {
+      // fallback if product endpoint differs
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    fetchProducts();
+  }, []);
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    setUpdatingId(orderId);
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) throw new Error('Failed to update status');
+
+      setOrders((prev) =>
+        prev.map((ord) => (ord._id === orderId ? { ...ord, status: newStatus } : ord))
+      );
+      toast.success(`Order status updated to "${newStatus}"`);
     } catch (error) {
-      console.error('Error fetching products:', error);
-      toast.error('Failed to load products.');
+      toast.error(error.message || 'Could not update order status');
     } finally {
-      setLoading(false);
+      setUpdatingId(null);
     }
   };
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    setSubmittingProduct(true);
     try {
-      setSubmitting(true);
-      const token = localStorage.getItem('adminToken');
-      
-      const formData = new FormData();
-      formData.append('name', name);
-      formData.append('description', description);
-      formData.append('price', Number(price));
-      formData.append('category', category);
-      if (imageFile) {
-        formData.append('image', imageFile);
-      }
-
-      await API.post('/products', formData, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
+      const token = getToken();
+      const res = await fetch('http://localhost:5000/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(productForm)
       });
-
-      toast.success('Masterpiece added successfully! ✨');
-      setName('');
-      setDescription('');
-      setPrice('');
-      setCategory('');
-      setImageFile(null);
-      setImagePreview('');
+      if (!res.ok) throw new Error('Failed to add product');
+      toast.success('Product added successfully!');
+      setProductForm({ name: '', category: '', price: '', description: '', imageUrl: '' });
       fetchProducts();
-    } catch (error) {
-      console.error('Error adding product:', error);
-      toast.error(error.response?.data?.message || 'Failed to add product.');
+    } catch (err) {
+      toast.error(err.message);
     } finally {
-      setSubmitting(false);
+      setSubmittingProduct(false);
     }
   };
 
   const handleDeleteProduct = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this luxury item?')) return;
     try {
-      const token = localStorage.getItem('adminToken');
-      await API.delete(`/products/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const token = getToken();
+      const res = await fetch(`http://localhost:5000/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      toast.success('Product removed.');
-      setProducts(products.filter(p => p._id !== id));
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      toast.error('Failed to delete product.');
-    }
-  };
-
-  const openEditModal = (product) => {
-    setEditingProduct(product);
-    setEditName(product.name || '');
-    setEditDescription(product.description || '');
-    setEditPrice(product.price || '');
-    setEditCategory(product.category || '');
-    setEditImageUrl(product.imageUrl || product.image || '');
-  };
-
-  const handleUpdateProduct = async (e) => {
-    e.preventDefault();
-    if (!editingProduct) return;
-
-    try {
-      setUpdating(true);
-      const token = localStorage.getItem('adminToken');
-
-      await API.put(`/products/${editingProduct._id}`, {
-        name: editName,
-        description: editDescription,
-        price: Number(editPrice),
-        category: editCategory,
-        imageUrl: editImageUrl
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      toast.success('Product updated successfully! ✨');
-      setEditingProduct(null);
+      if (!res.ok) throw new Error('Failed to delete');
+      toast.success('Product deleted');
       fetchProducts();
-    } catch (error) {
-      console.error('Error updating product:', error);
-      toast.error(error.response?.data?.message || 'Failed to update product.');
-    } finally {
-      setUpdating(false);
+    } catch (err) {
+      toast.error(err.message);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    toast.success('Logged out successfully.');
-    navigate('/admin/login');
+  // Analytics Metrics Calculations
+  const totalOrdersCount = orders.length;
+  const uniqueCustomersCount = new Set(orders.map((o) => o.customerPhone || o.customerName)).size;
+  const cancelledOrdersCount = orders.filter((o) => (o.status || 'Pending') === 'Cancelled').length;
+  const totalRevenue = orders
+    .filter((o) => (o.status || 'Pending') !== 'Cancelled')
+    .reduce((acc, curr) => acc + Number(curr.totalAmount || 0), 0);
+
+  const getWhatsAppLink = (order) => {
+    const cleanPhone = order.customerPhone ? order.customerPhone.replace(/[^0-9]/g, '') : '';
+    const text = encodeURIComponent(
+      `Hello ${order.customerName},\n\nRegarding your order #${order._id}:\nCurrent Status: *${order.status || 'Pending'}*\nTotal Amount: ₹${order.totalAmount}\n\nThank you for shopping with us!`
+    );
+    return `https://wa.me/${cleanPhone}?text=${text}`;
   };
 
-  const isDark = theme === 'dark';
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch =
+      (order.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.customerPhone || '').includes(searchQuery) ||
+      (order._id || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesStatus = statusFilter === 'All' || (order.status || 'Pending') === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <div className={`min-h-screen py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto transition-colors duration-500 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#f7f3f5] text-slate-800'}`}>
-      
-      {/* Top Banner with Theme Toggle & Fluid Animations */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        className={`flex flex-col sm:flex-row items-center justify-between gap-4 p-6 rounded-3xl border shadow-lg backdrop-blur-xl mb-10 transition-colors duration-500 ${
-          isDark 
-            ? 'bg-slate-900/80 border-slate-800 shadow-pink-950/20' 
-            : 'bg-[#ede5e9]/90 border-[#e3d5dd] shadow-pink-200/50'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <motion.div 
-            whileHover={{ rotate: 15, scale: 1.05 }}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-md shadow-pink-500/30"
-          >
-            <ShieldCheck className="w-6 h-6" />
-          </motion.div>
-          <div>
-            <h1 className="font-serif text-2xl font-bold tracking-tight">Admin Command Center 🌸</h1>
-            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Manage your luxury catalog and inventory effortlessly</p>
-          </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+      {/* Top Banner */}
+      <div className="bg-white border border-pink-100 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-slate-800">Admin Command Center 🌸</h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Manage your store orders, track customer statistics, and control inventory effortlessly.
+          </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Theme Toggle Button */}
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setTheme(isDark ? 'dim-light' : 'dark')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold border transition-all duration-300 ${
-              isDark 
-                ? 'bg-slate-800/80 border-slate-700 text-amber-300 hover:bg-slate-800' 
-                : 'bg-white/80 border-[#e0cfd8] text-pink-600 hover:bg-white shadow-sm'
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-2 bg-pink-50 p-1.5 rounded-2xl border border-pink-100">
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'orders'
+                ? 'bg-pink-600 text-white shadow-md shadow-pink-200'
+                : 'text-slate-600 hover:text-pink-600'
             }`}
           >
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {isDark ? 'Dim Mode' : 'Dark Mode'}
-          </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            whileHover={{ scale: 1.05 }}
-            onClick={handleLogout}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-semibold border transition-all duration-300 ${
-              isDark
-                ? 'bg-rose-950/30 border-rose-900/50 text-rose-300 hover:bg-rose-900/40'
-                : 'bg-white/80 border-[#e0cfd8] text-rose-600 hover:bg-rose-50 shadow-sm'
+            📦 Orders &amp; Customers ({totalOrdersCount})
+          </button>
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'products'
+                ? 'bg-pink-600 text-white shadow-md shadow-pink-200'
+                : 'text-slate-600 hover:text-pink-600'
             }`}
           >
-            <LogOut className="w-4 h-4" /> Sign Out
-          </motion.button>
+            ✨ Inventory ({products.length})
+          </button>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Main Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left Form: Add New Product */}
-        <motion.div 
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-          className="lg:col-span-5"
-        >
-          <div className={`p-6 sm:p-8 rounded-3xl border shadow-xl sticky top-28 backdrop-blur-xl transition-colors duration-500 ${
-            isDark 
-              ? 'bg-slate-900/80 border-slate-800' 
-              : 'bg-[#ede5e9]/85 border-[#e3d5dd]'
-          }`}>
-            <h3 className="font-serif text-xl font-bold mb-6 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-pink-500" /> Add New Creation
-            </h3>
-
-            <form onSubmit={handleAddProduct} className="space-y-4">
-              <div>
-                <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Product Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="E.g., Rose Gold Artisan Tray"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={`w-full px-4 py-2.5 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 transition-all ${
-                    isDark 
-                      ? 'bg-slate-950/50 border-slate-800 text-slate-200 placeholder:text-slate-600' 
-                      : 'bg-white/70 border-[#e0cfd8] text-slate-800 placeholder:text-slate-400'
-                  }`}
-                />
+      {/* TAB 1: ORDERS & ANALYTICS */}
+      {activeTab === 'orders' && (
+        <div className="space-y-8">
+          {/* Analytics Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-6 rounded-3xl border border-pink-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-pink-50 text-pink-600 flex items-center justify-center font-bold">
+                <Package className="w-6 h-6" />
               </div>
-
               <div>
-                <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Category *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="E.g., Decor, Jewelry, Home"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className={`w-full px-4 py-2.5 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 transition-all ${
-                    isDark 
-                      ? 'bg-slate-950/50 border-slate-800 text-slate-200 placeholder:text-slate-600' 
-                      : 'bg-white/70 border-[#e0cfd8] text-slate-800 placeholder:text-slate-400'
-                  }`}
-                />
+                <p className="text-xs uppercase font-bold text-slate-400">Total Orders</p>
+                <h3 className="font-serif text-2xl font-bold text-slate-800">{totalOrdersCount}</h3>
               </div>
+            </div>
 
+            <div className="bg-white p-6 rounded-3xl border border-pink-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <Users className="w-6 h-6" />
+              </div>
               <div>
-                <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Price (₹) *</label>
-                <input
-                  type="number"
-                  required
-                  placeholder="1499"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className={`w-full px-4 py-2.5 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 transition-all ${
-                    isDark 
-                      ? 'bg-slate-950/50 border-slate-800 text-slate-200 placeholder:text-slate-600' 
-                      : 'bg-white/70 border-[#e0cfd8] text-slate-800 placeholder:text-slate-400'
-                  }`}
-                />
+                <p className="text-xs uppercase font-bold text-slate-400">Total Customers</p>
+                <h3 className="font-serif text-2xl font-bold text-slate-800">{uniqueCustomersCount}</h3>
               </div>
+            </div>
 
+            <div className="bg-white p-6 rounded-3xl border border-pink-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                <XCircle className="w-6 h-6" />
+              </div>
               <div>
-                <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Product Image (From Device) *</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  required
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      setImageFile(file);
-                      setImagePreview(URL.createObjectURL(file));
-                    }
-                  }}
-                  className={`w-full text-sm file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold transition-all cursor-pointer ${
-                    isDark 
-                      ? 'text-slate-400 file:bg-slate-800 file:text-pink-400 hover:file:bg-slate-700' 
-                      : 'text-slate-600 file:bg-pink-100/60 file:text-pink-700 hover:file:bg-pink-200/70'
-                  }`}
-                />
-                {imagePreview && (
-                  <motion.img 
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    src={imagePreview} 
-                    alt="Preview" 
-                    className={`w-20 h-20 object-cover rounded-xl mt-3 border shadow-sm ${isDark ? 'border-slate-800' : 'border-[#e0cfd8]'}`} 
-                  />
-                )}
+                <p className="text-xs uppercase font-bold text-slate-400">Cancelled Orders</p>
+                <h3 className="font-serif text-2xl font-bold text-slate-800">{cancelledOrdersCount}</h3>
               </div>
+            </div>
 
+            <div className="bg-white p-6 rounded-3xl border border-pink-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <DollarSign className="w-6 h-6" />
+              </div>
               <div>
-                <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Description *</label>
-                <textarea
-                  required
-                  rows="3"
-                  placeholder="Describe the artisan craftsmanship..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className={`w-full px-4 py-2 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 transition-all resize-none ${
-                    isDark 
-                      ? 'bg-slate-950/50 border-slate-800 text-slate-200 placeholder:text-slate-600' 
-                      : 'bg-white/70 border-[#e0cfd8] text-slate-800 placeholder:text-slate-400'
-                  }`}
-                />
+                <p className="text-xs uppercase font-bold text-slate-400">Active Revenue</p>
+                <h3 className="font-serif text-2xl font-bold text-slate-800">₹{totalRevenue}</h3>
               </div>
-
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit"
-                disabled={submitting}
-                className="w-full mt-2 flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-rose-400 hover:from-pink-600 hover:to-rose-500 text-white py-3.5 px-6 rounded-2xl font-semibold shadow-lg shadow-pink-500/20 transition-all duration-300 text-sm tracking-wide disabled:opacity-50"
-              >
-                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Plus className="w-4 h-4" /> Publish Masterpiece</>}
-              </motion.button>
-            </form>
+            </div>
           </div>
-        </motion.div>
 
-        {/* Right Section: Existing Products Catalog */}
-        <motion.div 
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
-          className="lg:col-span-7"
-        >
-          <div className={`p-6 sm:p-8 rounded-3xl border shadow-lg backdrop-blur-xl transition-colors duration-500 ${
-            isDark 
-              ? 'bg-slate-900/80 border-slate-800' 
-              : 'bg-[#ede5e9]/85 border-[#e3d5dd]'
-          }`}>
-            <h3 className="font-serif text-xl font-bold mb-6 flex items-center gap-2">
-              <Package className="w-5 h-5 text-pink-500" /> Active Inventory ({products.length})
-            </h3>
+          {/* Search & Filter Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2 relative">
+              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by customer name, phone number, or Order ID..."
+                className="w-full pl-11 pr-4 py-3 bg-white border border-pink-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 shadow-sm"
+              />
+            </div>
 
-            {loading ? (
-              <div className="flex justify-center py-20">
-                <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
-              </div>
-            ) : products.length === 0 ? (
-              <p className={`text-center py-12 text-sm ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>No products found in database.</p>
-            ) : (
-              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
-                <AnimatePresence>
-                  {products.map((item, index) => (
-                    <motion.div
-                      key={item._id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.3, delay: index * 0.04 }}
-                      whileHover={{ scale: 1.01 }}
-                      className={`flex items-center justify-between gap-4 p-4 rounded-2xl border shadow-sm transition-colors duration-300 ${
-                        isDark 
-                          ? 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700' 
-                          : 'bg-white/80 border-[#e3d5dd] hover:border-pink-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={item.imageUrl || item.image || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=200'}
-                          alt={item.name}
-                          className={`w-16 h-16 rounded-xl object-cover flex-shrink-0 border ${isDark ? 'border-slate-800 bg-slate-900' : 'border-[#e0cfd8] bg-pink-50'}`}
-                        />
-                        <div>
-                          <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full ${
-                            isDark ? 'bg-pink-950/60 text-pink-300 border border-pink-900/50' : 'bg-pink-100 text-pink-700'
-                          }`}>
-                            {item.category}
-                          </span>
-                          <h4 className="font-serif font-bold mt-1">{item.name}</h4>
-                          <p className="text-sm font-semibold text-pink-500">₹{item.price}</p>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-pink-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 font-medium text-slate-700 shadow-sm"
+            >
+              <option value="All">All Statuses</option>
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Orders List & Status Updates */}
+          {loadingOrders ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <RefreshCw className="w-8 h-8 animate-spin mb-3 text-pink-500" />
+              <p className="text-sm font-medium">Loading orders &amp; customer metrics...</p>
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-3xl border border-pink-100 p-8 shadow-sm">
+              <Package className="w-12 h-12 text-pink-300 mx-auto mb-3" />
+              <h3 className="font-serif text-lg font-bold text-slate-800">No Orders Found</h3>
+              <p className="text-slate-500 text-xs mt-1">Customer orders will appear here once placed.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {filteredOrders.map((order) => {
+                const currentStatus = order.status || 'Pending';
+                const matchedStatusOpt = STATUS_OPTIONS.find((s) => s.value === currentStatus) || STATUS_OPTIONS[0];
+
+                return (
+                  <motion.div
+                    key={order._id}
+                    layout
+                    className="bg-white border border-pink-100 rounded-3xl p-6 sm:p-7 shadow-sm space-y-6"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-pink-100 pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold uppercase text-slate-400">Order ID:</span>
+                          <span className="text-sm font-mono font-bold text-slate-800">{order._id}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Placed on: {order.createdAt ? new Date(order.createdAt).toLocaleString() : 'N/A'}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${matchedStatusOpt.color}`}>
+                          <matchedStatusOpt.icon className="w-3.5 h-3.5" />
+                          {currentStatus}
+                        </span>
+
+                        {/* Status Updater Dropdown */}
+                        <select
+                          value={currentStatus}
+                          disabled={updatingId === order._id}
+                          onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                          className="px-3 py-1.5 bg-pink-50 border border-pink-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-pink-400 cursor-pointer"
+                        >
+                          {STATUS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>Mark as {opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="space-y-2.5">
+                        <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">Customer Details</h4>
+                        <p className="font-serif font-bold text-base text-slate-800">{order.customerName}</p>
+                        
+                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                          <Phone className="w-3.5 h-3.5 text-pink-500 shrink-0" />
+                          <span>{order.customerPhone}</span>
+                        </div>
+
+                        <div className="flex items-start gap-2 text-xs text-slate-600">
+                          <MapPin className="w-3.5 h-3.5 text-pink-500 shrink-0 mt-0.5" />
+                          <span>{order.shippingAddress?.address}, {order.shippingAddress?.city} - {order.shippingAddress?.pincode}</span>
+                        </div>
+
+                        <a
+                          href={getWhatsAppLink(order)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-3.5 py-2 mt-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold shadow-sm transition-all"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Chat on WhatsApp
+                        </a>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">Items Ordered</h4>
+                        <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                          {order.orderItems?.map((item, index) => (
+                            <div key={index} className="flex justify-between items-center text-xs p-2 rounded-xl bg-pink-50/50 border border-pink-100">
+                              <span className="font-medium text-slate-800">
+                                {item.name} <span className="text-pink-600 font-bold">x{item.quantity}</span>
+                              </span>
+                              <span className="font-bold text-slate-700">₹{item.price * item.quantity}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => openEditModal(item)}
-                          className={`p-2.5 rounded-xl transition-colors ${
-                            isDark ? 'text-pink-400 hover:bg-slate-800' : 'text-pink-600 hover:bg-pink-100/60'
-                          }`}
-                          title="Edit Product"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleDeleteProduct(item._id)}
-                          className={`p-2.5 rounded-xl transition-colors ${
-                            isDark ? 'text-rose-400 hover:bg-rose-950/40' : 'text-rose-500 hover:bg-rose-50'
-                          }`}
-                          title="Delete Product"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </motion.button>
+                      <div className="space-y-3 bg-pink-50/30 p-4 rounded-2xl border border-pink-100">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500">Payment Mode:</span>
+                          <span className="font-bold text-slate-800">{order.paymentMethod || 'WhatsApp'}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500">Total Amount:</span>
+                          <span className="font-serif font-bold text-lg text-pink-600">₹{order.totalAmount}</span>
+                        </div>
+
+                        {order.specialInstructions && (
+                          <div className="pt-2 border-t border-pink-100">
+                            <span className="text-[10px] uppercase font-bold text-pink-600 flex items-center gap-1">
+                              <FileText className="w-3 h-3" /> Special Instructions:
+                            </span>
+                            <p className="text-xs italic text-slate-700 mt-1 bg-white p-2.5 rounded-xl border border-pink-200">
+                              "{order.specialInstructions}"
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: INVENTORY & PRODUCTS */}
+      {activeTab === 'products' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="bg-white p-6 rounded-3xl border border-pink-100 shadow-sm h-fit space-y-4">
+            <h3 className="font-serif text-xl font-bold text-slate-800">Add New Creation</h3>
+            <form onSubmit={handleAddProduct} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Product Name</label>
+                <input
+                  type="text"
+                  required
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                  placeholder="e.g., Rose Gold Artisan Tray"
+                  className="w-full px-4 py-3 bg-pink-50/50 border border-pink-200 rounded-2xl text-sm"
+                />
               </div>
-            )}
-          </div>
-        </motion.div>
-
-      </div>
-
-      {/* Edit Product Modal */}
-      <AnimatePresence>
-        {editingProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className={`rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border max-h-[90vh] overflow-y-auto ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#ede5e9] border-[#e3d5dd]'
-              }`}
-            >
-              <div className={`flex items-center justify-between mb-6 pb-4 border-b ${isDark ? 'border-slate-800' : 'border-[#e0cfd8]'}`}>
-                <h3 className="font-serif text-xl font-bold flex items-center gap-2">
-                  <Edit3 className="w-5 h-5 text-pink-500" /> Edit Masterpiece
-                </h3>
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setEditingProduct(null)}
-                  className={`p-2 rounded-xl transition-colors ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-600 hover:bg-pink-100/60'}`}
-                >
-                  <X className="w-5 h-5" />
-                </motion.button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Category</label>
+                <input
+                  type="text"
+                  required
+                  value={productForm.category}
+                  onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                  placeholder="e.g., Decor, Jewelry"
+                  className="w-full px-4 py-3 bg-pink-50/50 border border-pink-200 rounded-2xl text-sm"
+                />
               </div>
-
-              <form onSubmit={handleUpdateProduct} className="space-y-4">
-                <div>
-                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Product Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className={`w-full px-4 py-2.5 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 ${
-                      isDark ? 'bg-slate-950/50 border-slate-800 text-slate-200' : 'bg-white/70 border-[#e0cfd8] text-slate-800'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Category *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value)}
-                    className={`w-full px-4 py-2.5 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 ${
-                      isDark ? 'bg-slate-950/50 border-slate-800 text-slate-200' : 'bg-white/70 border-[#e0cfd8] text-slate-800'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Price (₹) *</label>
-                  <input
-                    type="number"
-                    required
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
-                    className={`w-full px-4 py-2.5 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 ${
-                      isDark ? 'bg-slate-950/50 border-slate-800 text-slate-200' : 'bg-white/70 border-[#e0cfd8] text-slate-800'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Image URL *</label>
-                  <input
-                    type="url"
-                    required
-                    value={editImageUrl}
-                    onChange={(e) => setEditImageUrl(e.target.value)}
-                    className={`w-full px-4 py-2.5 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 ${
-                      isDark ? 'bg-slate-950/50 border-slate-800 text-slate-200' : 'bg-white/70 border-[#e0cfd8] text-slate-800'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Description *</label>
-                  <textarea
-                    required
-                    rows="3"
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    className={`w-full px-4 py-2 border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none ${
-                      isDark ? 'bg-slate-950/50 border-slate-800 text-slate-200' : 'bg-white/70 border-[#e0cfd8] text-slate-800'
-                    }`}
-                  />
-                </div>
-
-                <div className="flex items-center gap-3 pt-4">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    onClick={() => setEditingProduct(null)}
-                    className={`w-1/2 py-3 px-6 rounded-2xl font-semibold border text-sm transition-all ${
-                      isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-[#d4c2cc] text-slate-700 hover:bg-white/60'
-                    }`}
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    disabled={updating}
-                    className="w-1/2 py-3 px-6 rounded-2xl font-semibold bg-gradient-to-r from-pink-500 to-rose-400 text-white shadow-md shadow-pink-500/20 hover:shadow-lg text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
-                  </motion.button>
-                </div>
-              </form>
-            </motion.div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Price (₹)</label>
+                <input
+                  type="number"
+                  required
+                  value={productForm.price}
+                  onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                  placeholder="1499"
+                  className="w-full px-4 py-3 bg-pink-50/50 border border-pink-200 rounded-2xl text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Image URL</label>
+                <input
+                  type="text"
+                  required
+                  value={productForm.imageUrl}
+                  onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full px-4 py-3 bg-pink-50/50 border border-pink-200 rounded-2xl text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Description</label>
+                <textarea
+                  rows="3"
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  placeholder="Describe the artisan craftsmanship..."
+                  className="w-full px-4 py-3 bg-pink-50/50 border border-pink-200 rounded-2xl text-sm resize-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={submittingProduct}
+                className="w-full py-4 rounded-2xl bg-pink-600 text-white font-semibold text-sm shadow-md hover:bg-pink-700 transition"
+              >
+                {submittingProduct ? 'Adding...' : 'Add Creation ✨'}
+              </button>
+            </form>
           </div>
-        )}
-      </AnimatePresence>
+
+          <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-pink-100 shadow-sm space-y-4">
+            <h3 className="font-serif text-xl font-bold text-slate-800">Active Inventory ({products.length})</h3>
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+              {products.length === 0 ? (
+                <p className="text-sm text-slate-400 text-py-10">No products listed yet.</p>
+              ) : (
+                products.map((prod) => (
+                  <div key={prod._id || prod.id} className="flex items-center justify-between p-4 rounded-2xl border border-pink-100 bg-pink-50/20">
+                    <div className="flex items-center gap-4">
+                      <img src={prod.imageUrl || prod.image} alt={prod.name} className="w-16 h-16 rounded-xl object-cover" />
+                      <div>
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-pink-100 text-pink-700">{prod.category}</span>
+                        <h4 className="font-serif font-bold text-slate-800 mt-1">{prod.name}</h4>
+                        <p className="text-pink-600 font-bold text-sm">₹{prod.price}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteProduct(prod._id || prod.id)}
+                      className="p-2.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
+                      title="Delete Product"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

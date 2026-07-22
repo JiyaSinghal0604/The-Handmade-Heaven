@@ -48,6 +48,7 @@ const createOrder = async (req, res) => {
       orderItems,
       paymentMethod,
       ownerId,
+      specialInstructions, // Added for Feature 1
       totalAmount: clientTotalAmount
     } = req.body || {};
 
@@ -82,7 +83,8 @@ const createOrder = async (req, res) => {
       paymentMethod: paymentMethod === 'WhatsApp' ? 'WhatsApp' : 'Cash on Delivery',
       paymentStatus: 'Pending',
       status: 'New',
-      owner
+      owner,
+      specialInstructions: specialInstructions ? specialInstructions.trim() : '' // Added for Feature 1
     });
 
     const customerQuery = customerPhone
@@ -215,6 +217,47 @@ const updatePaymentStatus = async (req, res) => {
   }
 };
 
+// Added for Feature 2: Cancel Order
+const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ message: 'Invalid order id' });
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Ensure order can only be cancelled if 'New' or 'Accepted'
+    const allowedStatuses = ['New', 'Accepted'];
+    if (!allowedStatuses.includes(order.status)) {
+      return res.status(400).json({ 
+        message: `Cannot cancel order because it is currently marked as '${order.status}'` 
+      });
+    }
+
+    // Restore product stock
+    for (const item of order.orderItems) {
+      const product = await Product.findById(item.product);
+      if (product) {
+        product.stock = (Number(product.stock) || 0) + Number(item.quantity || 0);
+        product.isLowStock = product.stock <= 5;
+        await product.save();
+      }
+    }
+
+    // Update the status to Cancelled
+    order.status = 'Cancelled';
+    const updatedOrder = await order.save();
+
+    return res.status(200).json({ 
+      message: 'Order cancelled successfully', 
+      order: updatedOrder 
+    });
+  } catch (error) {
+    console.error('cancelOrder error:', error);
+    return res.status(500).json({ message: 'Server Error: Failed to cancel order', error: error.message });
+  }
+};
+
 const linkGuestOrders = async (req, res) => {
   try {
     const { ownerId, phone, email } = req.body || {};
@@ -310,13 +353,13 @@ const getAnalytics = async (req, res) => {
   }
 };
 
-
 module.exports = {
   createOrder,
   getOrders,
   getOrderById,
   updateOrderStatus,
   updatePaymentStatus,
+  cancelOrder, // Exported for Feature 2
   getAnalytics,
   linkGuestOrders,
   getMyOrders
