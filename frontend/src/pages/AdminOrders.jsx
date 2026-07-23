@@ -39,7 +39,7 @@ export default function AdminOrders() {
     setLoading(true);
     try {
       const token = getToken();
-      const response = await fetch('http://localhost:5000/api/orders', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -70,7 +70,7 @@ export default function AdminOrders() {
     try {
       const token = getToken();
       // Match backend route method: PUT
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',

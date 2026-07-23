@@ -18,7 +18,7 @@ export default function TrackOrder() {
         const initializeOrders = async () => {
             try {
                 // Automatically link today's guest orders to this user account
-                await fetch('http://localhost:5000/api/orders/link-guest', {
+                await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders/link-guest`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -50,7 +50,7 @@ export default function TrackOrder() {
 
     const fetchOrders = async (id) => {
         try {
-            const res = await fetch(`http://localhost:5000/api/orders/user/${id}`, {
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders/user/${id}`, {
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem("customerToken")}`
                 }
@@ -73,7 +73,7 @@ export default function TrackOrder() {
         }
 
         try {
-            const res = await fetch(`http://localhost:5000/api/orders/${orderId}/cancel`, {
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders/${orderId}/cancel`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

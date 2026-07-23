@@ -61,7 +61,7 @@ export default function AdminDashboard() {
     setLoadingOrders(true);
     try {
       const token = getToken();
-      const response = await fetch('http://localhost:5000/api/orders', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -77,7 +77,7 @@ export default function AdminDashboard() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/products');
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products`);
       if (!res.ok) throw new Error('Failed to fetch products');
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : data.products || []);
@@ -95,7 +95,7 @@ export default function AdminDashboard() {
     setUpdatingId(orderId);
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -138,8 +138,8 @@ export default function AdminDashboard() {
     try {
       const token = getToken();
       const url = editingProductId
-        ? `http://localhost:5000/api/products/${editingProductId}`
-        : 'http://localhost:5000/api/products';
+        ? `${import.meta.env.VITE_API_BASE_URL}/products/${editingProductId}`
+        : `${import.meta.env.VITE_API_BASE_URL}/products`;
       const method = editingProductId ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -183,7 +183,7 @@ export default function AdminDashboard() {
   const handleDeleteProduct = async (id) => {
     try {
       const token = getToken();
-      const res = await fetch(`http://localhost:5000/api/products/${id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
