@@ -15,7 +15,30 @@ export default function TrackOrder() {
             return;
         }
 
-        fetchOrders(user._id);
+        const initializeOrders = async () => {
+            try {
+                // Automatically link today's guest orders to this user account
+                await fetch('http://localhost:5000/api/orders/link-guest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${localStorage.getItem("customerToken")}`
+                    },
+                    body: JSON.stringify({
+                        ownerId: user._id,
+                        phone: user.phone,
+                        email: user.email
+                    })
+                });
+            } catch (err) {
+                console.error("Error linking guest orders:", err);
+            }
+
+            // Fetch orders after attempting link
+            fetchOrders(user._id);
+        };
+
+        initializeOrders();
 
         const interval = setInterval(() => {
             fetchOrders(user._id);
@@ -27,9 +50,8 @@ export default function TrackOrder() {
 
     const fetchOrders = async (id) => {
         try {
-            const res = await fetch(`/api/orders/user/${id}`, {
+            const res = await fetch(`http://localhost:5000/api/orders/user/${id}`, {
                 headers: {
-                    // Fixed spacing and spelling for standard Authorization header
                     Authorization: `Bearer ${localStorage.getItem("customerToken")}`
                 }
             });
@@ -51,7 +73,7 @@ export default function TrackOrder() {
         }
 
         try {
-            const res = await fetch(`/api/orders/${orderId}/cancel`, {
+            const res = await fetch(`http://localhost:5000/api/orders/${orderId}/cancel`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -62,7 +84,6 @@ export default function TrackOrder() {
             const data = await res.json();
 
             if (res.ok) {
-                // Update local state to reflect cancellation immediately
                 setOrders(orders.map(order => 
                     order._id === orderId ? { ...order, status: 'Cancelled' } : order
                 ));
@@ -79,8 +100,6 @@ export default function TrackOrder() {
         localStorage.removeItem("customer");
         localStorage.removeItem("customerToken");
         navigate("/");
-        // Note: For Feature 4, ensuring Navbar detects this requires updating Context or triggering an event, 
-        // which we will do when we edit Navbar.jsx.
     };
 
     if (loading) {
@@ -135,7 +154,6 @@ export default function TrackOrder() {
                                     {order.status}
                                 </span>
 
-                                {/* Feature 2: Cancel Order Button */}
                                 {['New', 'Accepted'].includes(order.status) && (
                                     <button
                                         onClick={() => handleCancelOrder(order._id)}
@@ -154,7 +172,6 @@ export default function TrackOrder() {
                                 key={item.product?._id || item.product}
                                 className="flex justify-between items-center py-3"
                             >
-                                {/* Feature 3: Product Images in Order History */}
                                 <div className="flex items-center gap-4">
                                     {item.product?.imageUrl || item.product?.image ? (
                                         <img 
@@ -211,7 +228,6 @@ export default function TrackOrder() {
                             </div>
                         </div>
 
-                        {/* Feature 1: Customer Notes (Special Instructions) */}
                         {order.specialInstructions && (
                             <div className="mt-5 p-4 bg-yellow-50/80 border border-yellow-200 rounded-2xl">
                                 <h4 className="text-xs font-bold text-yellow-800 uppercase tracking-wider mb-1">

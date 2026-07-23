@@ -18,7 +18,8 @@ import {
   Trash2,
   Edit3,
   TrendingUp,
-  DollarSign
+  DollarSign,
+  Upload
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -42,7 +43,7 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [updatingId, setUpdatingId] = useState(null);
 
-  // Products State (from your existing inventory view)
+  // Products State
   const [products, setProducts] = useState([]);
   const [productForm, setProductForm] = useState({
     name: '',
@@ -52,6 +53,7 @@ export default function AdminDashboard() {
     imageUrl: ''
   });
   const [submittingProduct, setSubmittingProduct] = useState(false);
+  const [editingProductId, setEditingProductId] = useState(null);
 
   const getToken = () => localStorage.getItem('token') || localStorage.getItem('authToken') || localStorage.getItem('adminToken');
 
@@ -76,12 +78,11 @@ export default function AdminDashboard() {
   const fetchProducts = async () => {
     try {
       const res = await fetch('http://localhost:5000/api/products');
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(Array.isArray(data) ? data : data.products || []);
-      }
-    } catch {
-      // fallback if product endpoint differs
+      if (!res.ok) throw new Error('Failed to fetch products');
+      const data = await res.json();
+      setProducts(Array.isArray(data) ? data : data.products || []);
+    } catch (error) {
+      toast.error(error.message || 'Error loading products');
     }
   };
 
@@ -116,28 +117,67 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleAddProduct = async (e) => {
+  const handleImageFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProductForm((prev) => ({ ...prev, imageUrl: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProduct = async (e) => {
     e.preventDefault();
+    if (!productForm.imageUrl) {
+      toast.error('Please upload an image from your device.');
+      return;
+    }
     setSubmittingProduct(true);
     try {
       const token = getToken();
-      const res = await fetch('http://localhost:5000/api/products', {
-        method: 'POST',
+      const url = editingProductId
+        ? `http://localhost:5000/api/products/${editingProductId}`
+        : 'http://localhost:5000/api/products';
+      const method = editingProductId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(productForm)
       });
-      if (!res.ok) throw new Error('Failed to add product');
-      toast.success('Product added successfully!');
+
+      if (!res.ok) throw new Error(editingProductId ? 'Failed to update product' : 'Failed to add product');
+      
+      toast.success(editingProductId ? 'Product updated successfully!' : 'Product added successfully!');
       setProductForm({ name: '', category: '', price: '', description: '', imageUrl: '' });
+      setEditingProductId(null);
       fetchProducts();
     } catch (err) {
       toast.error(err.message);
     } finally {
       setSubmittingProduct(false);
     }
+  };
+
+  const handleEditProduct = (prod) => {
+    setEditingProductId(prod._id || prod.id);
+    setProductForm({
+      name: prod.name || '',
+      category: prod.category || '',
+      price: prod.price || '',
+      description: prod.description || '',
+      imageUrl: prod.imageUrl || prod.image || ''
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProductId(null);
+    setProductForm({ name: '', category: '', price: '', description: '', imageUrl: '' });
   };
 
   const handleDeleteProduct = async (id) => {
@@ -418,8 +458,22 @@ export default function AdminDashboard() {
       {activeTab === 'products' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="bg-white p-6 rounded-3xl border border-pink-100 shadow-sm h-fit space-y-4">
-            <h3 className="font-serif text-xl font-bold text-slate-800">Add New Creation</h3>
-            <form onSubmit={handleAddProduct} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-xl font-bold text-slate-800">
+                {editingProductId ? 'Edit Creation' : 'Add New Creation'}
+              </h3>
+              {editingProductId && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="text-xs text-rose-500 font-semibold hover:underline"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveProduct} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Product Name</label>
                 <input
@@ -454,15 +508,28 @@ export default function AdminDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Image URL</label>
-                <input
-                  type="text"
-                  required
-                  value={productForm.imageUrl}
-                  onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-4 py-3 bg-pink-50/50 border border-pink-200 rounded-2xl text-sm"
-                />
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Upload Image from Device</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-pink-50/50 border border-pink-200 border-dashed rounded-2xl text-sm text-slate-600 hover:bg-pink-100/50 transition cursor-pointer">
+                    <Upload className="w-4 h-4 text-pink-600" />
+                    <span className="truncate">{productForm.imageUrl ? 'Change Image' : 'Choose File'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {productForm.imageUrl && (
+                  <div className="mt-3 flex items-center gap-3 p-2 bg-pink-50/30 border border-pink-100 rounded-2xl">
+                    <img src={productForm.imageUrl} alt="Preview" className="w-12 h-12 rounded-xl object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 truncate">Image Selected</p>
+                      <p className="text-[10px] text-pink-600">Ready to save</p>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Description</label>
@@ -479,7 +546,7 @@ export default function AdminDashboard() {
                 disabled={submittingProduct}
                 className="w-full py-4 rounded-2xl bg-pink-600 text-white font-semibold text-sm shadow-md hover:bg-pink-700 transition"
               >
-                {submittingProduct ? 'Adding...' : 'Add Creation ✨'}
+                {submittingProduct ? 'Saving...' : editingProductId ? 'Update Creation ✨' : 'Add Creation ✨'}
               </button>
             </form>
           </div>
@@ -488,7 +555,7 @@ export default function AdminDashboard() {
             <h3 className="font-serif text-xl font-bold text-slate-800">Active Inventory ({products.length})</h3>
             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
               {products.length === 0 ? (
-                <p className="text-sm text-slate-400 text-py-10">No products listed yet.</p>
+                <p className="text-sm text-slate-400 py-10 text-center">No products listed yet.</p>
               ) : (
                 products.map((prod) => (
                   <div key={prod._id || prod.id} className="flex items-center justify-between p-4 rounded-2xl border border-pink-100 bg-pink-50/20">
@@ -500,13 +567,22 @@ export default function AdminDashboard() {
                         <p className="text-pink-600 font-bold text-sm">₹{prod.price}</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDeleteProduct(prod._id || prod.id)}
-                      className="p-2.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
-                      title="Delete Product"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditProduct(prod)}
+                        className="p-2.5 rounded-xl bg-pink-50 text-pink-600 hover:bg-pink-100 transition"
+                        title="Edit Product"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProduct(prod._id || prod.id)}
+                        className="p-2.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
