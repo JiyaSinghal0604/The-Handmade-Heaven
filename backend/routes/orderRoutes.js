@@ -23,7 +23,7 @@ const verifyToken = require('../middleware/auth');
 router.post('/', createOrder);
 
 // Link previous guest orders after customer registers/logs in
-router.post('/link-orders', linkGuestOrders);
+router.post('/link-guest', linkGuestOrders);
 
 
 // ================= ADMIN (Static routes MUST come before /:id) =================

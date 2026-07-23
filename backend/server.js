@@ -1,5 +1,3 @@
-// backend/server.js
-
 // Import required modules
 const express = require('express');
 const dotenv = require('dotenv');
@@ -28,7 +26,13 @@ connectDB();
 const app = express();
 
 // Middleware configuration
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173', 
+    'https://your-frontend-app.vercel.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

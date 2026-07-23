@@ -48,7 +48,7 @@ const createOrder = async (req, res) => {
       orderItems,
       paymentMethod,
       ownerId,
-      specialInstructions, // Added for Feature 1
+      specialInstructions,
       totalAmount: clientTotalAmount
     } = req.body || {};
 
@@ -62,15 +62,26 @@ const createOrder = async (req, res) => {
 
     const { normalized, computedTotal } = await normalizeOrderItems(orderItems);
     if (normalized.length === 0) {
-      return res.status(400).json({ message: 'No valid order items provided' });
+      return res.status(400).json({ message: 'No valid order items provided with valid product IDs' });
     }
 
     const totalAmount = Number(computedTotal || clientTotalAmount || 0);
-    const owner = ownerId && isValidId(ownerId) ? ownerId : undefined;
-    const finalAddress = normalizeAddress(shippingAddress);
 
-    if (!finalAddress) {
-      return res.status(400).json({ message: 'Shipping address is required' });
+    let owner = undefined;
+    if (ownerId && typeof ownerId === 'string' && !['null', 'undefined', ''].includes(ownerId.trim())) {
+      if (isValidId(ownerId.trim())) {
+        owner = ownerId.trim();
+      }
+    }
+
+    let finalAddress = shippingAddress;
+    if (typeof shippingAddress === 'object' && shippingAddress !== null) {
+      finalAddress = [shippingAddress.address, shippingAddress.city, shippingAddress.pincode]
+        .filter(Boolean)
+        .join(', ')
+        .trim() || 'Not specified';
+    } else if (!finalAddress || typeof finalAddress !== 'string') {
+      finalAddress = 'Not specified';
     }
 
     const order = await Order.create({
@@ -80,11 +91,12 @@ const createOrder = async (req, res) => {
       shippingAddress: finalAddress,
       orderItems: normalized,
       totalAmount,
-      paymentMethod: paymentMethod === 'WhatsApp' ? 'WhatsApp' : 'Cash on Delivery',
+      paymentMethod: paymentMethod && paymentMethod.includes('WhatsApp') ? 'WhatsApp' : 'Cash on Delivery',
       paymentStatus: 'Pending',
       status: 'New',
       owner,
-      specialInstructions: specialInstructions ? specialInstructions.trim() : '' // Added for Feature 1
+      ownerId: owner, // Set both to prevent schema mapping mismatches
+      specialInstructions: specialInstructions ? specialInstructions.trim() : ''
     });
 
     const customerQuery = customerPhone
@@ -100,6 +112,7 @@ const createOrder = async (req, res) => {
         existingCustomer.totalSpent = (existingCustomer.totalSpent || 0) + totalAmount;
         existingCustomer.name = customerName.trim();
         if (customerEmail) existingCustomer.email = customerEmail.trim().toLowerCase();
+        if (owner) existingCustomer.linkedUser = owner;
         await existingCustomer.save();
       } else {
         await Customer.create({
@@ -107,7 +120,8 @@ const createOrder = async (req, res) => {
           phone: customerPhone.trim(),
           email: (customerEmail || '').trim().toLowerCase(),
           totalOrders: 1,
-          totalSpent: totalAmount
+          totalSpent: totalAmount,
+          linkedUser: owner
         });
       }
     }
@@ -132,8 +146,11 @@ const createOrder = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('createOrder error:', error);
-    return res.status(500).json({ message: 'Server Error: Failed to place order', error: error.message });
+    console.error('createOrder error stack:', error);
+    return res.status(500).json({ 
+      message: 'Server Error: Failed to place order', 
+      error: error.message 
+    });
   }
 };
 
@@ -180,15 +197,27 @@ const getOrderById = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body || {};
-    const validStatuses = ['New', 'Accepted', 'Making', 'Ready', 'Delivered', 'Cancelled'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid order pipeline status' });
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+
+    const validStatuses = [
+      'New', 'Pending', 'Processing', 'Accepted', 'Making', 'Ready', 
+      'Out for Delivery', 'Delivered', 'Cancelled'
+    ];
+
+    const matchedStatus = validStatuses.find(
+      v => v.toLowerCase() === status.trim().toLowerCase()
+    );
+
+    if (!matchedStatus) {
+      return res.status(400).json({ message: `Invalid order pipeline status: ${status}` });
     }
 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    order.status = status;
+    order.status = matchedStatus;
     const updated = await order.save();
     return res.status(200).json(updated);
   } catch (error) {
@@ -217,7 +246,6 @@ const updatePaymentStatus = async (req, res) => {
   }
 };
 
-// Added for Feature 2: Cancel Order
 const cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -226,7 +254,6 @@ const cancelOrder = async (req, res) => {
     const order = await Order.findById(id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Ensure order can only be cancelled if 'New' or 'Accepted'
     const allowedStatuses = ['New', 'Accepted'];
     if (!allowedStatuses.includes(order.status)) {
       return res.status(400).json({ 
@@ -234,7 +261,6 @@ const cancelOrder = async (req, res) => {
       });
     }
 
-    // Restore product stock
     for (const item of order.orderItems) {
       const product = await Product.findById(item.product);
       if (product) {
@@ -244,7 +270,6 @@ const cancelOrder = async (req, res) => {
       }
     }
 
-    // Update the status to Cancelled
     order.status = 'Cancelled';
     const updatedOrder = await order.save();
 
@@ -260,33 +285,53 @@ const cancelOrder = async (req, res) => {
 
 const linkGuestOrders = async (req, res) => {
   try {
-    const { ownerId, phone, email } = req.body || {};
-    if (!ownerId || !isValidId(ownerId)) {
-      return res.status(400).json({ message: 'Valid ownerId is required' });
-    }
-    if (!phone && !email) {
-      return res.status(400).json({ message: 'Phone or email is required to find guest orders' });
+    const { ownerId, phone, email } = req.body;
+
+    if (!ownerId) {
+      return res.status(400).json({ success: false, message: "Owner ID is required" });
     }
 
-    const query = { owner: { $in: [null, undefined] } };
-    if (phone) query.customerPhone = phone;
-    if (email) query.customerEmail = email.toLowerCase();
-
-    const result = await Order.updateMany(query, { $set: { owner: ownerId } });
-
-    await User.findById(ownerId).lean();
-    const custQuery = phone ? { phone } : email ? { email: email.toLowerCase() } : null;
-    if (custQuery) {
-      await Customer.updateMany(custQuery, { $set: { linkedUser: ownerId } });
+    const conditions = [];
+    if (phone) {
+      conditions.push({ customerPhone: phone });
+      conditions.push({ phone: phone });
     }
+    if (email) {
+      conditions.push({ customerEmail: email });
+      conditions.push({ email: email });
+    }
+
+    if (conditions.length === 0) {
+      return res.status(200).json({ success: true, modifiedCount: 0, message: "No contact info provided" });
+    }
+
+    const query = {
+      $and: [
+        { 
+          $or: [
+            { owner: null }, 
+            { owner: { $exists: false } }, 
+            { ownerId: null }, 
+            { ownerId: { $exists: false } }
+          ] 
+        },
+        { $or: conditions }
+      ]
+    };
+
+    const updateResult = await Order.updateMany(
+      query,
+      { $set: { owner: ownerId, ownerId: ownerId } }
+    );
 
     return res.status(200).json({
-      message: 'Linked guest orders',
-      modifiedCount: result.modifiedCount ?? result.nModified ?? 0
+      success: true,
+      message: "Guest orders linked successfully",
+      modifiedCount: updateResult.modifiedCount
     });
-  } catch (error) {
-    console.error('linkGuestOrders error:', error);
-    return res.status(500).json({ message: 'Server Error: Failed to link guest orders', error: error.message });
+  } catch (err) {
+    console.error("Error in linkGuestOrders:", err);
+    return res.status(500).json({ success: false, message: "Server error while linking orders", error: err.message });
   }
 };
 
@@ -295,23 +340,20 @@ const getMyOrders = async (req, res) => {
     const { ownerId } = req.params;
 
     if (!isValidId(ownerId)) {
-      return res.status(400).json({
-        message: "Invalid user id"
-      });
+      return res.status(400).json({ message: "Invalid user id" });
     }
 
-    const orders = await Order.find({ owner: ownerId })
+    // Query both 'owner' and 'ownerId' fields to prevent missing any records
+    const orders = await Order.find({
+      $or: [{ owner: ownerId }, { ownerId: ownerId }]
+    })
       .populate("orderItems.product", "name price image imageUrl")
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
-      orders
-    });
-
+    return res.status(200).json({ orders });
   } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
+    console.error("getMyOrders error:", error);
+    return res.status(500).json({
       message: "Failed to fetch orders",
       error: error.message
     });
@@ -359,7 +401,7 @@ module.exports = {
   getOrderById,
   updateOrderStatus,
   updatePaymentStatus,
-  cancelOrder, // Exported for Feature 2
+  cancelOrder,
   getAnalytics,
   linkGuestOrders,
   getMyOrders
