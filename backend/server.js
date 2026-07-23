@@ -29,7 +29,7 @@ const app = express();
 app.use(cors({
   origin: [
     'http://localhost:5173', 
-    'https://the-handmade-heaven-frontend.onrender.com/'
+    'https://the-handmade-heaven-frontend.onrender.com'
   ],
   credentials: true
 }));
