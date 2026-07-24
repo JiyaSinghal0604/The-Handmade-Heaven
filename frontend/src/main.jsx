@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { CartProvider } from './context/CartContext.jsx';
 import './index.css';
@@ -8,7 +8,7 @@ import App from './App.jsx';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <Router>
       <CartProvider>
         <App />
         <Toaster 
@@ -25,6 +25,6 @@ createRoot(document.getElementById('root')).render(
           }}
         />
       </CartProvider>
-    </BrowserRouter>
+    </Router>
   </StrictMode>,
 )
