@@ -55,26 +55,26 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-pink-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-pink-100 shadow-sm w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-2">
         
         {/* Brand Logo */}
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-md shadow-pink-200 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-5 h-5" />
+        <Link to="/" className="flex items-center gap-2.5 group min-w-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-md shadow-pink-200 group-hover:scale-105 transition-transform flex-shrink-0">
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <span className="font-serif text-xl font-bold tracking-tight text-pink-700 block leading-none">
+          <div className="truncate">
+            <span className="font-serif text-base sm:text-xl font-bold tracking-tight text-pink-700 block leading-none truncate">
               Handmade Heaven
             </span>
-            <span className="text-[9px] uppercase tracking-widest text-slate-400 font-semibold">
+            <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-semibold block truncate">
               Luxury Artisan Goods
             </span>
           </div>
         </Link>
 
-        {/* Navigation Links */}
-        <nav className="hidden md:flex items-center gap-8">
+        {/* Navigation Links (Desktop) */}
+        <nav className="hidden lg:flex items-center gap-6">
           <Link
             to="/"
             className={`text-sm font-medium transition-colors ${
@@ -94,7 +94,7 @@ export default function Navbar() {
         </nav>
 
         {/* Action Icons & Auth */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
 
           {/* 1. IF ADMIN IS LOGGED IN */}
           {admin ? (
@@ -106,19 +106,20 @@ export default function Navbar() {
 
               <Link
                 to="/admin/orders"
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-pink-600 text-white hover:bg-pink-700 transition text-sm font-medium shadow-sm"
+                className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl bg-pink-600 text-white hover:bg-pink-700 transition text-xs sm:text-sm font-medium shadow-sm"
               >
-                <Package className="w-4 h-4" />
-                Dashboard
+                <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Dashboard</span>
               </Link>
 
               <button
+                object="true"
                 onClick={adminLogout}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition text-sm font-medium"
+                className="flex items-center gap-1 px-2.5 sm:px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition text-xs sm:text-sm font-medium"
                 title="Admin Logout"
               >
-                <LogOut className="w-4 h-4" />
-                Logout
+                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </>
           ) : customer ? (
@@ -126,14 +127,14 @@ export default function Navbar() {
             <>
               <Link
                 to="/track-order"
-                className="px-4 py-2 rounded-xl border border-pink-200 text-pink-600 hover:bg-pink-50 transition text-sm font-medium"
+                className="px-2.5 sm:px-4 py-2 rounded-xl border border-pink-200 text-pink-600 hover:bg-pink-50 transition text-xs sm:text-sm font-medium whitespace-nowrap"
               >
                 My Orders
               </Link>
 
               <button
                 onClick={logout}
-                className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition text-sm font-medium"
+                className="px-2.5 sm:px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition text-xs sm:text-sm font-medium"
               >
                 Logout
               </button>
@@ -142,22 +143,29 @@ export default function Navbar() {
             /* 3. IF NO ONE IS LOGGED IN */
             <>
               <Link
+                to="/products"
+                className="lg:hidden px-2.5 py-2 rounded-xl border border-pink-200 text-pink-600 hover:bg-pink-50 transition text-xs font-medium"
+              >
+                Shop
+              </Link>
+
+              <Link
                 to="/login"
-                className="px-4 py-2 rounded-xl border border-pink-200 text-pink-600 hover:bg-pink-50 transition text-sm font-medium"
+                className="px-2.5 sm:px-4 py-2 rounded-xl border border-pink-200 text-pink-600 hover:bg-pink-50 transition text-xs sm:text-sm font-medium"
               >
                 Login
               </Link>
 
               <Link
                 to="/register"
-                className="px-4 py-2 rounded-xl bg-pink-500 text-white hover:bg-pink-600 transition text-sm font-medium"
+                className="hidden sm:inline-block px-4 py-2 rounded-xl bg-pink-500 text-white hover:bg-pink-600 transition text-sm font-medium shadow-sm"
               >
                 Register
               </Link>
 
               <Link
                 to="/admin/login"
-                className="p-3 rounded-2xl bg-pink-50 border border-pink-200 text-slate-700 hover:text-pink-600 hover:bg-pink-100 transition-all shadow-sm"
+                className="p-2.5 sm:p-3 rounded-2xl bg-pink-50 border border-pink-200 text-slate-700 hover:text-pink-600 hover:bg-pink-100 transition-all shadow-sm"
                 title="Admin Login"
               >
                 <ShieldCheck className="w-4 h-4" />
@@ -165,10 +173,11 @@ export default function Navbar() {
             </>
           )}
 
-          {/* Cart Icon */}
+          {/* Cart Icon (Always visible & fixed size so it never pushes off-screen) */}
           <Link
             to="/cart"
-            className="relative p-3 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-400 text-white shadow-lg shadow-pink-200 hover:scale-105 transition-transform"
+            className="relative p-2.5 sm:p-3 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-400 text-white shadow-lg shadow-pink-200 hover:scale-105 transition-transform flex-shrink-0"
+            title="Cart"
           >
             <ShoppingBag className="w-4 h-4" />
 
