@@ -146,7 +146,7 @@ export default function Cart() {
       console.log("🔍 DEBUG - Extracted Owner ID:", currentOwnerId);
       console.log("📦 DEBUG - Full Order Payload:", orderPayload);
 
-      const response = await fetch('${import.meta.env.VITE_API_BASE_URL}/orders', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderPayload)
