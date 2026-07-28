@@ -6,9 +6,9 @@ export default function Login() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        const token=localStorage.getItem("customerToken");
-        const customer=localStorage.getItem("customer");
-        if(token && customer){
+        const token = localStorage.getItem("customerToken");
+        const customer = localStorage.getItem("customer");
+        if (token && customer) {
             navigate("/track-order");
         }
     }, [navigate]);
@@ -29,11 +29,13 @@ export default function Login() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         setLoading(true);
 
         try {
-            const res = await fetch("/api/auth/login", {
+            // Uses your Render environment variable dynamically; falls back to relative path for local dev proxy
+            const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+
+            const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -41,31 +43,35 @@ export default function Login() {
                 body: JSON.stringify(form)
             });
 
-            const data = await res.json();
+            // Safely read text first to catch Render cold-start HTML pages or empty bodies without throwing crashes
+            const text = await res.text();
+            let data = {};
+            try {
+                data = text ? JSON.parse(text) : {};
+            } catch {
+                throw new Error("Server is waking up from sleep mode. Please try logging in again in 30 seconds.");
+            }
 
             if (!res.ok) {
-                throw new Error(data.message);
+                throw new Error(data.message || "Login failed");
             }
 
             localStorage.setItem("customerToken", data.token);
             localStorage.setItem("customer", JSON.stringify(data.user));
 
-            toast.success("Login Successful!");
-
+            toast.success("Login Successful! 🌸");
             navigate("/track-order");
 
         } catch (err) {
             toast.error(err.message || "Login failed");
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-pink-50 px-4">
-
             <div className="bg-white w-full max-w-md rounded-3xl shadow-xl p-8">
-
                 <h1 className="text-3xl font-bold text-pink-600 text-center mb-2">
                     Welcome Back 🌸
                 </h1>
@@ -74,11 +80,7 @@ export default function Login() {
                     Login to track your orders.
                 </p>
 
-                <form
-                    onSubmit={handleSubmit}
-                    className="space-y-5"
-                >
-
+                <form onSubmit={handleSubmit} className="space-y-5">
                     <input
                         type="email"
                         name="email"
@@ -86,7 +88,7 @@ export default function Login() {
                         required
                         value={form.email}
                         onChange={handleChange}
-                        className="w-full p-3 rounded-xl border"
+                        className="w-full p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-pink-400"
                     />
 
                     <input
@@ -96,33 +98,27 @@ export default function Login() {
                         required
                         value={form.password}
                         onChange={handleChange}
-                        className="w-full p-3 rounded-xl border"
+                        className="w-full p-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-pink-400"
                     />
 
                     <button
                         disabled={loading}
-                        className="w-full bg-pink-500 text-white py-3 rounded-xl font-semibold hover:bg-pink-600"
+                        className="w-full bg-pink-500 text-white py-3 rounded-xl font-semibold hover:bg-pink-600 transition-all disabled:opacity-50"
                     >
                         {loading ? "Logging in..." : "Login"}
                     </button>
-
                 </form>
 
-                <div className="text-center mt-6">
-
+                <div className="text-center mt-6 text-sm text-gray-600">
                     Don't have an account?
-
                     <Link
                         to="/register"
-                        className="text-pink-600 font-semibold ml-2"
+                        className="text-pink-600 font-semibold ml-2 hover:underline"
                     >
                         Register
                     </Link>
-
                 </div>
-
             </div>
-
         </div>
     );
 }

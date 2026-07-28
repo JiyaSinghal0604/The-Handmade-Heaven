@@ -52,6 +52,7 @@ export default function AdminDashboard() {
     description: '',
     imageUrl: ''
   });
+  const [imageFile, setImageFile] = useState(null);
   const [submittingProduct, setSubmittingProduct] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
 
@@ -119,46 +120,63 @@ export default function AdminDashboard() {
 
   const handleImageFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProductForm((prev) => ({ ...prev, imageUrl: reader.result }));
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    setImageFile(file);
+
+    // Preview only locally
+    setProductForm(prev => ({
+      ...prev,
+      imageUrl: URL.createObjectURL(file)
+    }));
   };
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
-    if (!productForm.imageUrl) {
-      toast.error('Please upload an image from your device.');
-      return;
-    }
     setSubmittingProduct(true);
+
     try {
       const token = getToken();
+      const formData = new FormData();
+
+      formData.append("name", productForm.name);
+      formData.append("description", productForm.description);
+      formData.append("price", productForm.price);
+      formData.append("category", productForm.category);
+      formData.append("stock", productForm.stock || 0);
+      
+      if (imageFile) {
+        formData.append("image", imageFile);
+      }
+
       const url = editingProductId
         ? `${import.meta.env.VITE_API_BASE_URL}/products/${editingProductId}`
         : `${import.meta.env.VITE_API_BASE_URL}/products`;
+      
       const method = editingProductId ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(productForm)
+        body: formData
       });
 
-      if (!res.ok) throw new Error(editingProductId ? 'Failed to update product' : 'Failed to add product');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to save product');
+      }
+
+      toast.success(editingProductId ? 'Creation updated successfully!' : 'Creation added successfully!');
       
-      toast.success(editingProductId ? 'Product updated successfully!' : 'Product added successfully!');
+      // Reset form state
       setProductForm({ name: '', category: '', price: '', description: '', imageUrl: '' });
+      setImageFile(null);
       setEditingProductId(null);
       fetchProducts();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || 'Error saving product');
     } finally {
       setSubmittingProduct(false);
     }
@@ -166,17 +184,20 @@ export default function AdminDashboard() {
 
   const handleEditProduct = (prod) => {
     setEditingProductId(prod._id || prod.id);
+    setImageFile(null); // Reset any previously cached file selection
     setProductForm({
       name: prod.name || '',
       category: prod.category || '',
       price: prod.price || '',
       description: prod.description || '',
-      imageUrl: prod.imageUrl || prod.image || ''
+      imageUrl: prod.imageUrl || prod.image || '',
+      stock: prod.stock !== undefined ? prod.stock : ''
     });
   };
 
   const handleCancelEdit = () => {
     setEditingProductId(null);
+    setImageFile(null);
     setProductForm({ name: '', category: '', price: '', description: '', imageUrl: '' });
   };
 
