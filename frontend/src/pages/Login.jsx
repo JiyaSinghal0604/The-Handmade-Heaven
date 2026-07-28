@@ -14,7 +14,6 @@ export default function Login() {
     }, [navigate]);
 
     const [loading, setLoading] = useState(false);
-
     const [form, setForm] = useState({
         email: "",
         password: ""
@@ -32,10 +31,9 @@ export default function Login() {
         setLoading(true);
 
         try {
-            // Uses your Render environment variable dynamically; falls back to relative path for local dev proxy
-            const API_BASE_URL = import.meta.env.VITE_API_URL || "";
-
-            const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+            
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -43,19 +41,19 @@ export default function Login() {
                 body: JSON.stringify(form)
             });
 
-            // Safely read text first to catch Render cold-start HTML pages or empty bodies without throwing crashes
             const text = await res.text();
             let data = {};
             try {
                 data = text ? JSON.parse(text) : {};
             } catch {
-                throw new Error("Server is waking up from sleep mode. Please try logging in again in 30 seconds.");
+                throw new Error("Server response was not valid JSON. Please check backend status.");
             }
 
             if (!res.ok) {
                 throw new Error(data.message || "Login failed");
             }
 
+            // Save token and user details according to your backend response
             localStorage.setItem("customerToken", data.token);
             localStorage.setItem("customer", JSON.stringify(data.user));
 
