@@ -105,7 +105,7 @@ export default function Navbar() {
               </div>
 
               <Link
-                to="/admin/orders"
+                to="/admin/dashboard"
                 className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 rounded-xl bg-pink-600 text-white hover:bg-pink-700 transition text-xs sm:text-sm font-medium shadow-sm"
               >
                 <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />

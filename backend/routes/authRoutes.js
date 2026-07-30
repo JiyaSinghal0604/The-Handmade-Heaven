@@ -9,6 +9,7 @@ const {
 } = require("../controllers/authController");
 
 // ---------------- ADMIN ----------------
+const verifyToken = require("../middleware/auth");
 
 // Seed first admin (only once)
 router.post("/admin/register", registerAdmin);
@@ -23,5 +24,13 @@ router.post("/register", registerUser);
 
 // Customer Login
 router.post("/login", loginUser);
+
+// Verify Admin Token
+router.get("/admin/verify", verifyToken, (req, res) => {
+    res.status(200).json({
+        success: true,
+        admin: req.admin
+    });
+});
 
 module.exports = router;

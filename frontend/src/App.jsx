@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import TrackOrder from "./pages/TrackOrder";
 import ProductDetail from "./pages/ProductDetails";
+import AdminProtectedRoute from "./components/AdminProtectedRoute";
 
 function App() {
   return (
@@ -191,7 +192,14 @@ function App() {
           <Route path="/product/:id" element={<ProductDetail />} />
 
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <AdminProtectedRoute>
+                <AdminDashboard />
+              </AdminProtectedRoute>
+            }
+          />
         </Routes>
       </main>
 
